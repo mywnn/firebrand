@@ -1,31 +1,32 @@
-﻿module Firebrand.IrcBot
+﻿namespace Firebrand.IrcBot
 
 open System
-open irclib.IrcCommand.Outbound
-open irclib.IrcCommand.Inbound
-open irclib.IrcConnection
+open irclib.IrcCommand
+open irclib
+open Microsoft.FSharp.Core.Operators.Unchecked
+open Common.Extensions
 
-type BotName = { nick : String; username : String; realname : String }
+type Bot = { Nick : String; Username : String; Realname : String }
 
-type IrcBot(server, port, name) = 
-
-    let conn = IrcConnection(server, port)
-    do    
-        conn.Send(Nick(name.nick))
-        conn.Send(User(name.username, name.realname))
-
-    member this.Join(channel) = 
-        conn.Send(Join(channel))
-
-    member this.Listen() = 
-        for cmd in conn.Stream() do
-            match this.respond cmd with
-                | Some(response) -> conn.Send response
-                | None -> ()
-
-    member this.respond cmd =
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Bot =
+    let private response cmd =
         match cmd with
-            | Ping server -> Some(Pong server)
-            | ChannelMessage (channel, msg) -> Some(OutMessage(channel, "You said " + msg))
-            | UserMessage (user, msg) -> Some(OutMessage(user, "You said " + msg))
-            | _ -> None
+        | Ping server -> Some(Pong server)
+        | ChannelMessage (channel, msg) -> Some(OutMessage(channel, "You said " + msg))
+        | UserMessage (user, msg) -> Some(OutMessage(user, "You said " + msg))
+        | _ -> None
+    let runBot name: _ IrcState = 
+        IrcConn.send(Nick(name.Nick)) >>= 
+        IrcConn.send(User(name.Username, name.Realname))
+    let inChannel channel = channel |> Join |> IrcConn.send
+    let onServer config = IrcConn.set config
+    let start(setup: _ IrcState) =
+        irc {
+            do! setup
+            let! lines = IrcConn.readStream()
+            let lines = lines |> Seq.toList
+            do! lines |> Seq.choose response |> Seq.map IrcConn.send |> Seq.reduce(mergeIrcTasks)
+        }
+        <| defaultof<IrcConn>
+        |> fst

@@ -1,17 +1,21 @@
-﻿module Firebrand.Main
-
-open Firebrand.IrcBot
-
-let server = "irc.freenode.net"
-let port = 6667
-let nick = "firebrand"
-let user = "firebrand"
-let channel = "#firebrand-test"
+﻿open Firebrand.IrcBot
+open irclib
+open Bot
+open System
 
 [<EntryPoint>]
 let main args = 
-    let nickInfo = {nick = nick; username = user; realname = user}
-    let bot = IrcBot(server, port, nickInfo)
-    bot.Join(channel)
-    bot.Listen()
+    let setup =
+        onServer({ Server = "irc.freenode.net"; Port = 6667 })
+        >>= runBot { 
+            Nick = "firebrand"; 
+            Username = "firebrand"; 
+            Realname = "firebrand" 
+        } 
+        >>= inChannel "#firebrand-test"
+
+    setup |> start
+
+    printfn "Press any key to exit."
+    Console.ReadLine() |> ignore
     0
